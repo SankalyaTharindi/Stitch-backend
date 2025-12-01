@@ -3,15 +3,25 @@ package com.stitch.app.controller;
 import com.stitch.app.dto.AppointmentDTO;
 import com.stitch.app.entity.Appointment;
 import com.stitch.app.entity.User;
+import com.stitch.app.repository.UserRepository;
 import com.stitch.app.service.AppointmentService;
+import com.stitch.app.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 @RestController
@@ -20,15 +30,17 @@ import java.util.List;
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
+    private final FileStorageService fileStorageService;
+    private final UserRepository userRepository;
 
     // Customer endpoints
     @PostMapping("/customer")
     @PreAuthorize("hasAuthority('CUSTOMER')")
     public ResponseEntity<Appointment> createAppointment(
             @RequestPart("appointment") AppointmentDTO dto,
-            @RequestPart(value = "image", required = false) MultipartFile image,
+            @RequestPart(value = "images", required = false) MultipartFile[] images,
             @AuthenticationPrincipal User user) {
-        Appointment appointment = appointmentService.createAppointment(dto, image, user);
+        Appointment appointment = appointmentService.createAppointment(dto, images, user);
         return ResponseEntity.ok(appointment);
     }
 
@@ -63,12 +75,20 @@ public class AppointmentController {
 
     @PutMapping("/customer/{id}")
     @PreAuthorize("hasAuthority('CUSTOMER')")
-    public ResponseEntity<Appointment> updateAppointment(
+    public ResponseEntity<Appointment> updateAppointmentByCustomer(
             @PathVariable Long id,
             @RequestPart("appointment") AppointmentDTO dto,
-            @RequestPart(value = "image", required = false) MultipartFile image,
-            @AuthenticationPrincipal User user) {
-        Appointment appointment = appointmentService.updateAppointmentByCustomer(id, dto, image, user.getId());
+            @RequestPart(value = "images", required = false) MultipartFile[] images,
+            @RequestParam(value = "deleteIndices", required = false) String deleteIndices,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User customer = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Appointment appointment = appointmentService.updateAppointmentByCustomer(
+                id, dto, images, deleteIndices, customer.getId()
+        );
+
         return ResponseEntity.ok(appointment);
     }
 
@@ -134,5 +154,72 @@ public class AppointmentController {
     public ResponseEntity<Void> deleteAppointment(@PathVariable Long id) {
         appointmentService.deleteAppointment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Serve image for admin
+    @GetMapping("/admin/{id}/image")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Resource> getAppointmentImageAdmin(@PathVariable Long id,
+                                                             @RequestParam(value = "index", required = false, defaultValue = "0") int index) {
+        Appointment appointment = appointmentService.getAppointmentById(id);
+        String fileNames = appointment.getInspoImageUrl();
+        if (fileNames == null || fileNames.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String[] parts = fileNames.split(",");
+        if (index < 0 || index >= parts.length) {
+            return ResponseEntity.badRequest().build();
+        }
+        String fileName = parts[index];
+
+        try {
+            Path filePath = fileStorageService.loadFile(fileName);
+            Resource resource = new UrlResource(filePath.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+            String contentType = Files.probeContentType(filePath);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
+                    .contentType(MediaType.parseMediaType(contentType == null ? "application/octet-stream" : contentType))
+                    .body(resource);
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    // Serve image for customer (only their own appointment)
+    @GetMapping("/customer/{id}/image")
+    @PreAuthorize("hasAuthority('CUSTOMER')")
+    public ResponseEntity<Resource> getAppointmentImageCustomer(@PathVariable Long id,
+                                                                @AuthenticationPrincipal User user,
+                                                                @RequestParam(value = "index", required = false, defaultValue = "0") int index) {
+        Appointment appointment = appointmentService.getAppointmentByIdAndCustomer(id, user.getId());
+        String fileNames = appointment.getInspoImageUrl();
+        if (fileNames == null || fileNames.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String[] parts = fileNames.split(",");
+        if (index < 0 || index >= parts.length) {
+            return ResponseEntity.badRequest().build();
+        }
+        String fileName = parts[index];
+
+        try {
+            Path filePath = fileStorageService.loadFile(fileName);
+            Resource resource = new UrlResource(filePath.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+            String contentType = Files.probeContentType(filePath);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
+                    .contentType(MediaType.parseMediaType(contentType == null ? "application/octet-stream" : contentType))
+                    .body(resource);
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

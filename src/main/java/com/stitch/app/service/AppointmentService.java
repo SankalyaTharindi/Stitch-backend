@@ -12,7 +12,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,12 +29,21 @@ public class AppointmentService {
     private final FileStorageService fileStorageService;
 
     @Transactional
-    public Appointment createAppointment(AppointmentDTO dto, MultipartFile image, User customer) {
+    public Appointment createAppointment(AppointmentDTO dto, MultipartFile[] images, User customer) {
         String imageUrl = null;
 
-        // Upload image if provided
-        if (image != null && !image.isEmpty()) {
-            imageUrl = fileStorageService.storeFile(image);
+        // Upload images if provided
+        if (images != null && images.length > 0) {
+            List<String> stored = new ArrayList<>();
+            for (MultipartFile img : images) {
+                if (img != null && !img.isEmpty()) {
+                    stored.add(fileStorageService.storeFile(img));
+                }
+            }
+            if (!stored.isEmpty()) {
+                // store as comma-separated filenames
+                imageUrl = String.join(",", stored);
+            }
         }
 
         Appointment appointment = Appointment.builder()
@@ -62,7 +75,7 @@ public class AppointmentService {
     }
 
     @Transactional
-    public Appointment updateAppointmentByCustomer(Long appointmentId, AppointmentDTO dto, MultipartFile image, Long customerId) {
+    public Appointment updateAppointmentByCustomer(Long appointmentId, AppointmentDTO dto, MultipartFile[] images, String deleteIndices, Long customerId) {
         // Verify the appointment belongs to the customer
         Appointment appointment = getAppointmentByIdAndCustomer(appointmentId, customerId);
 
@@ -88,14 +101,55 @@ public class AppointmentService {
             appointment.setNotes(dto.getNotes());
         }
 
-        // Update image if provided
-        if (image != null && !image.isEmpty()) {
-            // Delete old image if exists
-            if (appointment.getInspoImageUrl() != null) {
-                fileStorageService.deleteFile(appointment.getInspoImageUrl());
+        // Handle image deletions FIRST
+        if (deleteIndices != null && !deleteIndices.isEmpty()) {
+            String existing = appointment.getInspoImageUrl();
+            if (existing != null && !existing.isEmpty()) {
+                String[] files = existing.split(",");
+
+                List<Integer> toDelete = Arrays.stream(deleteIndices.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(Integer::parseInt)
+                        .filter(i -> i >= 0)
+                        .sorted(Comparator.reverseOrder()) // Delete from highest index first
+                        .collect(Collectors.toList());
+
+                List<String> remaining = new ArrayList<>(Arrays.asList(files));
+                for (int idx : toDelete) {
+                    if (idx >= 0 && idx < remaining.size()) {
+                        // Delete the physical file
+                        try {
+                            fileStorageService.deleteFile(remaining.get(idx));
+                        } catch (Exception e) {
+                            System.err.println("Warning: Could not delete file: " + e.getMessage());
+                        }
+                        remaining.remove(idx);
+                    }
+                }
+
+                // Update with remaining images
+                appointment.setInspoImageUrl(remaining.isEmpty() ? null : String.join(",", remaining));
             }
-            String imageUrl = fileStorageService.storeFile(image);
-            appointment.setInspoImageUrl(imageUrl);
+        }
+
+        // Then append new images if provided
+        if (images != null && images.length > 0) {
+            List<String> stored = new ArrayList<>();
+            for (MultipartFile img : images) {
+                if (img != null && !img.isEmpty()) {
+                    stored.add(fileStorageService.storeFile(img));
+                }
+            }
+            if (!stored.isEmpty()) {
+                String existing = appointment.getInspoImageUrl();
+                String appended = String.join(",", stored);
+                if (existing != null && !existing.isEmpty()) {
+                    appointment.setInspoImageUrl(existing + "," + appended);
+                } else {
+                    appointment.setInspoImageUrl(appended);
+                }
+            }
         }
 
         return appointmentRepository.save(appointment);
@@ -111,13 +165,16 @@ public class AppointmentService {
             throw new RuntimeException("Cannot delete appointment that is not in PENDING status");
         }
 
-        // Delete associated image if exists (don't fail if image deletion fails)
+        // Delete associated images if exists (don't fail if image deletion fails)
         if (appointment.getInspoImageUrl() != null && !appointment.getInspoImageUrl().isEmpty()) {
             try {
-                fileStorageService.deleteFile(appointment.getInspoImageUrl());
+                String[] files = appointment.getInspoImageUrl().split(",");
+                for (String f : files) {
+                    fileStorageService.deleteFile(f);
+                }
             } catch (Exception e) {
                 // Log but continue with appointment deletion
-                System.err.println("Warning: Could not delete image file for appointment " + appointmentId + ": " + e.getMessage());
+                System.err.println("Warning: Could not delete image files for appointment " + appointmentId + ": " + e.getMessage());
             }
         }
 
@@ -211,6 +268,23 @@ public class AppointmentService {
             notificationRepository.deleteByAppointmentId(id);
         } catch (Exception e) {
             System.err.println("Warning: Could not delete notifications for appointment " + id + ": " + e.getMessage());
+        }
+
+        // Delete stored image files if any
+        try {
+            Appointment appointment = getAppointmentById(id);
+            if (appointment.getInspoImageUrl() != null && !appointment.getInspoImageUrl().isEmpty()) {
+                String[] files = appointment.getInspoImageUrl().split(",");
+                for (String f : files) {
+                    try {
+                        fileStorageService.deleteFile(f);
+                    } catch (Exception ex) {
+                        System.err.println("Warning: Could not delete image file " + f + ": " + ex.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // ignore
         }
 
         appointmentRepository.deleteById(id);
