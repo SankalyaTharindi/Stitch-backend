@@ -5,6 +5,7 @@ import com.stitch.app.entity.Appointment;
 import com.stitch.app.entity.Notification;
 import com.stitch.app.entity.User;
 import com.stitch.app.repository.AppointmentRepository;
+import com.stitch.app.repository.NotificationRepository;
 import com.stitch.app.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
     private final FileStorageService fileStorageService;
 
@@ -51,12 +53,83 @@ public class AppointmentService {
     }
 
     public List<Appointment> getAppointmentsByCustomer(Long customerId) {
-        return appointmentRepository.findByCustomerId(customerId);
+        return appointmentRepository.findByCustomer_Id(customerId);
     }
 
     public Appointment getAppointmentByIdAndCustomer(Long appointmentId, Long customerId) {
-        return appointmentRepository.findByIdAndCustomerId(appointmentId, customerId)
+        return appointmentRepository.findByIdAndCustomer_Id(appointmentId, customerId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
+    }
+
+    @Transactional
+    public Appointment updateAppointmentByCustomer(Long appointmentId, AppointmentDTO dto, MultipartFile image, Long customerId) {
+        // Verify the appointment belongs to the customer
+        Appointment appointment = getAppointmentByIdAndCustomer(appointmentId, customerId);
+
+        // Only allow updates if appointment is PENDING
+        if (appointment.getStatus() != Appointment.Status.PENDING) {
+            throw new RuntimeException("Cannot update appointment that is not in PENDING status");
+        }
+
+        // Update fields
+        if (dto.getCustomerName() != null) {
+            appointment.setCustomerName(dto.getCustomerName());
+        }
+        if (dto.getAge() != null) {
+            appointment.setAge(dto.getAge());
+        }
+        if (dto.getPhoneNumber() != null) {
+            appointment.setPhoneNumber(dto.getPhoneNumber());
+        }
+        if (dto.getDeadline() != null) {
+            appointment.setDeadline(dto.getDeadline());
+        }
+        if (dto.getNotes() != null) {
+            appointment.setNotes(dto.getNotes());
+        }
+
+        // Update image if provided
+        if (image != null && !image.isEmpty()) {
+            // Delete old image if exists
+            if (appointment.getInspoImageUrl() != null) {
+                fileStorageService.deleteFile(appointment.getInspoImageUrl());
+            }
+            String imageUrl = fileStorageService.storeFile(image);
+            appointment.setInspoImageUrl(imageUrl);
+        }
+
+        return appointmentRepository.save(appointment);
+    }
+
+    @Transactional
+    public void deleteAppointmentByCustomer(Long appointmentId, Long customerId) {
+        // Verify the appointment belongs to the customer
+        Appointment appointment = getAppointmentByIdAndCustomer(appointmentId, customerId);
+
+        // Only allow deletion if appointment is PENDING
+        if (appointment.getStatus() != Appointment.Status.PENDING) {
+            throw new RuntimeException("Cannot delete appointment that is not in PENDING status");
+        }
+
+        // Delete associated image if exists (don't fail if image deletion fails)
+        if (appointment.getInspoImageUrl() != null && !appointment.getInspoImageUrl().isEmpty()) {
+            try {
+                fileStorageService.deleteFile(appointment.getInspoImageUrl());
+            } catch (Exception e) {
+                // Log but continue with appointment deletion
+                System.err.println("Warning: Could not delete image file for appointment " + appointmentId + ": " + e.getMessage());
+            }
+        }
+
+        // Delete related notifications first (to avoid foreign key constraint violation)
+        try {
+            notificationRepository.deleteByAppointmentId(appointmentId);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not delete notifications for appointment " + appointmentId + ": " + e.getMessage());
+        }
+
+        // Delete the appointment from database
+        appointmentRepository.deleteById(appointmentId);
     }
 
     public List<Appointment> getAllAppointments() {
@@ -133,6 +206,13 @@ public class AppointmentService {
 
     @Transactional
     public void deleteAppointment(Long id) {
+        // Delete related notifications first (to avoid foreign key constraint violation)
+        try {
+            notificationRepository.deleteByAppointmentId(id);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not delete notifications for appointment " + id + ": " + e.getMessage());
+        }
+
         appointmentRepository.deleteById(id);
     }
 

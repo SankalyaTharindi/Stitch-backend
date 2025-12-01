@@ -10,9 +10,10 @@ import java.util.Optional;
 
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
-    List<Appointment> findByCustomerId(Long customerId);
+    // Use customer_id to query by the relationship's ID
+    List<Appointment> findByCustomer_Id(Long customerId);
     List<Appointment> findByStatus(Appointment.Status status);
     List<Appointment> findByDeadlineBetween(LocalDate start, LocalDate end);
     List<Appointment> findAllByOrderByCreatedAtDesc();
-    Optional<Appointment> findByIdAndCustomerId(Long id, Long customerId);
+    Optional<Appointment> findByIdAndCustomer_Id(Long id, Long customerId);
 }

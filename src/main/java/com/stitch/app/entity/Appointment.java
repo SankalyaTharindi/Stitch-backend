@@ -1,5 +1,6 @@
 package com.stitch.app.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,7 @@ public class Appointment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password", "appointments"})
     private User customer;
 
     @Column(name = "customer_name", nullable = false)
@@ -61,6 +63,11 @@ public class Appointment {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // Helper method to get customer ID without triggering lazy loading
+    public Long getCustomerId() {
+        return customer != null ? customer.getId() : null;
     }
 
     public enum Status {

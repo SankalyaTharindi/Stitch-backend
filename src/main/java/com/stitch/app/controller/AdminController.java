@@ -23,7 +23,7 @@ public class AdminController {
     private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<List<UserDTO>> getAllUsers() {
         List<UserDTO> users = userRepository.findAll().stream()
                 .map(UserDTO::fromUser)
@@ -32,7 +32,7 @@ public class AdminController {
     }
 
     @GetMapping("/users/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -40,7 +40,7 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}/toggle-status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<UserDTO> toggleUserStatus(@PathVariable Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -52,7 +52,7 @@ public class AdminController {
     }
 
     @GetMapping("/customers")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<List<UserDTO>> getAllCustomers() {
         List<UserDTO> customers = userRepository.findAll().stream()
                 .filter(u -> u.getRole() == User.Role.CUSTOMER)
@@ -81,4 +81,3 @@ public class AdminController {
         return ResponseEntity.ok("Password changed successfully");
     }
 }
-

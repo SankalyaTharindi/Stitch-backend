@@ -59,4 +59,17 @@ public class FileStorageService {
     public Path loadFile(String fileName) {
         return fileStorageLocation.resolve(fileName).normalize();
     }
+
+    public void deleteFile(String fileName) {
+        try {
+            if (fileName != null && !fileName.isEmpty()) {
+                Path filePath = fileStorageLocation.resolve(fileName).normalize();
+                boolean deleted = Files.deleteIfExists(filePath);
+                System.out.println("File deletion - fileName: " + fileName + ", deleted: " + deleted);
+            }
+        } catch (IOException ex) {
+            // Log error but don't throw exception to prevent delete operation from failing
+            System.err.println("Warning: Could not delete file " + fileName + ": " + ex.getMessage());
+        }
+    }
 }
