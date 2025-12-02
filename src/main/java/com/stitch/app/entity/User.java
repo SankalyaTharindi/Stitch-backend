@@ -63,7 +63,7 @@ public class User implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // Return just the role name without ROLE_ prefix since we use hasAuthority() not hasRole()
+        // Return just the role name without ROLE_ prefix (original behavior)
         return List.of(new SimpleGrantedAuthority(role.name()));
     }
 

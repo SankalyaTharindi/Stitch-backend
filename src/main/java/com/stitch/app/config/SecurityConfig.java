@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/api/public/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN") // changed to hasAuthority("ADMIN") so authorities like "ADMIN" (without ROLE_ prefix) are accepted
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated()
                 )
