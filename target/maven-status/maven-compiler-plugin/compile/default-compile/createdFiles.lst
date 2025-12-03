@@ -5,6 +5,7 @@ com\stitch\app\entity\Appointment.class
 com\stitch\app\controller\AuthenticationController.class
 com\stitch\app\service\UserDetailsServiceImpl.class
 com\stitch\app\dto\RegisterRequest.class
+com\stitch\app\dto\UpdateProfileRequest.class
 com\stitch\app\dto\UserDTO.class
 com\stitch\app\entity\User$Role.class
 com\stitch\app\repository\UserRepository.class
@@ -42,6 +43,7 @@ com\stitch\app\entity\User$UserBuilder.class
 com\stitch\app\dto\ChangePasswordRequest.class
 com\stitch\app\config\MailConfig$NoOpJavaMailSender.class
 com\stitch\app\repository\GalleryImageRepository.class
+com\stitch\app\dto\UpdateProfileRequest$UpdateProfileRequestBuilder.class
 com\stitch\app\config\WebSocketConfig.class
 com\stitch\app\dto\AuthenticationRequest$AuthenticationRequestBuilder.class
 com\stitch\app\dto\RegisterRequest$RegisterRequestBuilder.class
