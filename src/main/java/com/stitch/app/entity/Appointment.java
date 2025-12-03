@@ -41,6 +41,9 @@ public class Appointment {
     @Column(name = "inspo_image_url")
     private String inspoImageUrl;
 
+    @Column(name = "bill_file_name")
+    private String billFileName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING;

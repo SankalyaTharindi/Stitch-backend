@@ -222,4 +222,58 @@ public class AppointmentController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    // --- New endpoints for bill upload/download/delete ---
+
+    // Admin upload bill for appointment (only when appointment.status == COMPLETED)
+    @PostMapping("/admin/{appointmentId}/bill")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Appointment> uploadBillByAdmin(@PathVariable Long appointmentId,
+                                                         @RequestPart("bill") MultipartFile billFile) {
+        Appointment updated = appointmentService.uploadBillByAdmin(appointmentId, billFile);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/admin/{appointmentId}/bill")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> deleteBillByAdmin(@PathVariable Long appointmentId) {
+        appointmentService.deleteBillByAdmin(appointmentId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Customer/Admin download bill - customer can only download for their own appointment
+    @GetMapping("/{appointmentId}/bill")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CUSTOMER')")
+    public ResponseEntity<Resource> downloadBill(@PathVariable Long appointmentId,
+                                                 @AuthenticationPrincipal User user) {
+        Appointment appointment = appointmentService.getAppointmentById(appointmentId);
+
+        // If current user is customer, ensure ownership
+        if (user != null && user.getRole() == User.Role.CUSTOMER) {
+            if (!appointment.getCustomer().getId().equals(user.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+        }
+
+        String fileName = appointment.getBillFileName();
+        if (fileName == null || fileName.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            Path filePath = fileStorageService.loadFile(fileName);
+            Resource resource = new UrlResource(filePath.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+            String contentType = Files.probeContentType(filePath);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
+                    .contentType(MediaType.parseMediaType(contentType == null ? "application/octet-stream" : contentType))
+                    .body(resource);
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
+

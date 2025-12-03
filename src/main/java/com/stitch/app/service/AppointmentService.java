@@ -303,4 +303,65 @@ public class AppointmentService {
             );
         }
     }
+
+    // --- New bill related methods ---
+
+    @Transactional
+    public Appointment uploadBillByAdmin(Long appointmentId, MultipartFile billFile) {
+        Appointment appointment = getAppointmentById(appointmentId);
+
+        // Only allow upload when appointment status is COMPLETED
+        if (appointment.getStatus() != Appointment.Status.COMPLETED) {
+            throw new RuntimeException("Can only upload bill when appointment is COMPLETED");
+        }
+
+        // Store the file
+        String storedFileName = fileStorageService.storeFile(billFile);
+
+        // If there's an existing bill, delete it
+        if (appointment.getBillFileName() != null && !appointment.getBillFileName().isEmpty()) {
+            try {
+                fileStorageService.deleteFile(appointment.getBillFileName());
+            } catch (Exception e) {
+                System.err.println("Warning: Could not delete existing bill file: " + e.getMessage());
+            }
+        }
+
+        appointment.setBillFileName(storedFileName);
+        appointment = appointmentRepository.save(appointment);
+
+        // Notify customer about bill upload
+        notificationService.createNotification(
+                appointment.getCustomer(),
+                appointment,
+                "Bill Uploaded",
+                "A bill has been uploaded for your appointment.",
+                Notification.NotificationType.PAYMENT_REMINDER
+        );
+
+        return appointment;
+    }
+
+    @Transactional
+    public void deleteBillByAdmin(Long appointmentId) {
+        Appointment appointment = getAppointmentById(appointmentId);
+
+        if (appointment.getBillFileName() == null || appointment.getBillFileName().isEmpty()) {
+            return; // nothing to delete
+        }
+
+        try {
+            fileStorageService.deleteFile(appointment.getBillFileName());
+        } catch (Exception e) {
+            System.err.println("Warning: Could not delete bill file: " + e.getMessage());
+        }
+
+        appointment.setBillFileName(null);
+        appointmentRepository.save(appointment);
+    }
+
+    public String getBillFileName(Long appointmentId) {
+        Appointment appointment = getAppointmentById(appointmentId);
+        return appointment.getBillFileName();
+    }
 }
