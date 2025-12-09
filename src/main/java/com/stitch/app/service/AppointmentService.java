@@ -364,4 +364,60 @@ public class AppointmentService {
         Appointment appointment = getAppointmentById(appointmentId);
         return appointment.getBillFileName();
     }
+
+    // --- Measurements related methods ---
+
+    @Transactional
+    public Appointment uploadMeasurementsByAdmin(Long appointmentId, MultipartFile measurementsFile) {
+        Appointment appointment = getAppointmentById(appointmentId);
+
+        // Store the file
+        String storedFileName = fileStorageService.storeFile(measurementsFile);
+
+        // If there's an existing measurements file, delete it
+        if (appointment.getMeasurementsFileName() != null && !appointment.getMeasurementsFileName().isEmpty()) {
+            try {
+                fileStorageService.deleteFile(appointment.getMeasurementsFileName());
+            } catch (Exception e) {
+                System.err.println("Warning: Could not delete existing measurements file: " + e.getMessage());
+            }
+        }
+
+        appointment.setMeasurementsFileName(storedFileName);
+        appointment = appointmentRepository.save(appointment);
+
+        // Notify customer about measurements upload
+        notificationService.createNotification(
+                appointment.getCustomer(),
+                appointment,
+                "Measurements Uploaded",
+                "Measurements file has been uploaded for your appointment.",
+                Notification.NotificationType.MEASUREMENT_REMINDER
+        );
+
+        return appointment;
+    }
+
+    @Transactional
+    public void deleteMeasurementsByAdmin(Long appointmentId) {
+        Appointment appointment = getAppointmentById(appointmentId);
+
+        if (appointment.getMeasurementsFileName() == null || appointment.getMeasurementsFileName().isEmpty()) {
+            return; // nothing to delete
+        }
+
+        try {
+            fileStorageService.deleteFile(appointment.getMeasurementsFileName());
+        } catch (Exception e) {
+            System.err.println("Warning: Could not delete measurements file: " + e.getMessage());
+        }
+
+        appointment.setMeasurementsFileName(null);
+        appointmentRepository.save(appointment);
+    }
+
+    public String getMeasurementsFileName(Long appointmentId) {
+        Appointment appointment = getAppointmentById(appointmentId);
+        return appointment.getMeasurementsFileName();
+    }
 }

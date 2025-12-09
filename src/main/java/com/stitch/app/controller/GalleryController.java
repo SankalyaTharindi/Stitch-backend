@@ -46,7 +46,10 @@ public class GalleryController {
 
     @GetMapping
     public ResponseEntity<List<GalleryImageDTO>> listAll(@AuthenticationPrincipal User user) {
-        List<GalleryImageDTO> dtos = galleryService.listAll(user != null ? user.getEmail() : null);
+        String userEmail = user != null ? user.getEmail() : null;
+        Long userId = user != null ? user.getId() : null;
+        System.out.println("GET /api/gallery - Authenticated user: " + userEmail + " (ID: " + userId + ")");
+        List<GalleryImageDTO> dtos = galleryService.listAll(userEmail);
         return ResponseEntity.ok(dtos);
     }
 
@@ -79,6 +82,8 @@ public class GalleryController {
     @PostMapping("/{id}/like")
     @PreAuthorize("hasAuthority('CUSTOMER')")
     public ResponseEntity<Long> toggleLike(@PathVariable Long id, @AuthenticationPrincipal User user) {
+        System.out.println("POST /api/gallery/" + id + "/like - Authenticated user: " +
+                         user.getEmail() + " (ID: " + user.getId() + ")");
         long likes = galleryService.toggleLike(id, user.getEmail());
         return ResponseEntity.ok(likes);
     }

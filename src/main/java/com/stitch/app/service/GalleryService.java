@@ -46,12 +46,18 @@ public class GalleryService {
             currentUser = userRepository.findByEmail(currentUserEmail).orElse(null);
         }
         final User finalCurrentUser = currentUser;
+
+        System.out.println("GalleryService.listAll called for user: " + currentUserEmail +
+                         " (userId: " + (finalCurrentUser != null ? finalCurrentUser.getId() : "null") + ")");
+
         return galleryImageRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(img -> {
                     long likes = galleryLikeRepository.countByImage(img);
                     boolean likedByCurrentUser = false;
                     if (finalCurrentUser != null) {
                         likedByCurrentUser = galleryLikeRepository.findByImageAndUser(img, finalCurrentUser).isPresent();
+                        System.out.println("  Image ID " + img.getId() + ": liked by user " +
+                                         finalCurrentUser.getId() + " = " + likedByCurrentUser);
                     }
                     return GalleryImageDTO.from(img, likes, likedByCurrentUser);
                 })
@@ -72,12 +78,18 @@ public class GalleryService {
         GalleryImage img = getById(imageId);
         User user = userRepository.findByEmail(userEmail).orElseThrow(() -> new RuntimeException("User not found"));
         GalleryLike like = galleryLikeRepository.findByImageAndUser(img, user).orElse(null);
+
         if (like == null) {
+            System.out.println("User " + user.getId() + " (" + userEmail + ") LIKED image " + imageId);
             galleryLikeRepository.save(GalleryLike.builder().image(img).user(user).build());
         } else {
+            System.out.println("User " + user.getId() + " (" + userEmail + ") UNLIKED image " + imageId);
             galleryLikeRepository.delete(like);
         }
-        return galleryLikeRepository.countByImage(img);
+
+        long totalLikes = galleryLikeRepository.countByImage(img);
+        System.out.println("Image " + imageId + " now has " + totalLikes + " total likes");
+        return totalLikes;
     }
 
     // New helper: check if a specific user has liked an image

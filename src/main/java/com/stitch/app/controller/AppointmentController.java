@@ -275,5 +275,58 @@ public class AppointmentController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    // --- New endpoints for measurements upload/download/delete ---
+
+    // Admin upload measurements for appointment
+    @PostMapping("/admin/{appointmentId}/measurements")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Appointment> uploadMeasurementsByAdmin(@PathVariable Long appointmentId,
+                                                                  @RequestPart("measurements") MultipartFile measurementsFile) {
+        Appointment updated = appointmentService.uploadMeasurementsByAdmin(appointmentId, measurementsFile);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/admin/{appointmentId}/measurements")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> deleteMeasurementsByAdmin(@PathVariable Long appointmentId) {
+        appointmentService.deleteMeasurementsByAdmin(appointmentId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Customer/Admin download measurements - customer can only download for their own appointment
+    @GetMapping("/{appointmentId}/measurements")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CUSTOMER')")
+    public ResponseEntity<Resource> downloadMeasurements(@PathVariable Long appointmentId,
+                                                         @AuthenticationPrincipal User user) {
+        Appointment appointment = appointmentService.getAppointmentById(appointmentId);
+
+        // If current user is customer, ensure ownership
+        if (user != null && user.getRole() == User.Role.CUSTOMER) {
+            if (!appointment.getCustomer().getId().equals(user.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+        }
+
+        String fileName = appointment.getMeasurementsFileName();
+        if (fileName == null || fileName.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            Path filePath = fileStorageService.loadFile(fileName);
+            Resource resource = new UrlResource(filePath.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+            String contentType = Files.probeContentType(filePath);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filePath.getFileName().toString() + "\"")
+                    .contentType(MediaType.parseMediaType(contentType == null ? "application/octet-stream" : contentType))
+                    .body(resource);
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
 

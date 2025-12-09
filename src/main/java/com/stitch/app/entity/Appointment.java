@@ -44,6 +44,9 @@ public class Appointment {
     @Column(name = "bill_file_name")
     private String billFileName;
 
+    @Column(name = "measurements_file_name")
+    private String measurementsFileName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING;
