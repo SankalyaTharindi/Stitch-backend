@@ -40,14 +40,66 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwt;
         final String userEmail;
 
-        // Check if Authorization header exists and starts with "Bearer "
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        // Log ALL requests to messages endpoints for debugging
+        if (request.getRequestURI().startsWith("/api/messages")) {
+            logger.info("=== JWT Filter processing request: {} {} ===", request.getMethod(), request.getRequestURI());
+            logger.info("Authorization header present: {}", authHeader != null);
+            if (authHeader != null) {
+                logger.info("Authorization header value: {}", authHeader.substring(0, Math.min(30, authHeader.length())) + "...");
+            }
+        }
+
+        // Helpful debug logging to diagnose missing Authorization header issues
+        if (authHeader == null) {
+            logger.debug("No Authorization header present for request: {} {}", request.getMethod(), request.getRequestURI());
+
+            // Fallback: allow token via access_token query parameter (useful for clients that can't set headers)
+            String accessTokenParam = request.getParameter("access_token");
+            if (accessTokenParam != null && !accessTokenParam.isBlank()) {
+                logger.debug("Found access_token query parameter for request {} {} - using it as Bearer token", request.getMethod(), request.getRequestURI());
+            }
+        } else if (!authHeader.startsWith("Bearer ")) {
+            logger.debug("Authorization header does not start with 'Bearer ' for request: {} {} - header='{}'", request.getMethod(), request.getRequestURI(), authHeader);
+        }
+
+        // Check if Authorization header exists and starts with "Bearer ", otherwise try access_token param or cookie
+        String tokenCandidate = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            tokenCandidate = authHeader.substring(7);
+        } else {
+            String accessTokenParam = request.getParameter("access_token");
+            if (accessTokenParam != null && !accessTokenParam.isBlank()) {
+                tokenCandidate = accessTokenParam;
+            } else {
+                // Check cookies for token fallback
+                if (request.getCookies() != null) {
+                    for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+                        if ("jwt".equalsIgnoreCase(cookie.getName()) || "access_token".equalsIgnoreCase(cookie.getName())) {
+                            if (cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                                tokenCandidate = cookie.getValue();
+                                logger.debug("Found JWT in cookie '{}' for request {} {}", cookie.getName(), request.getMethod(), request.getRequestURI());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // If no token found, continue filter chain unauthenticated
+        if (tokenCandidate == null) {
+            // Log for ALL /api/messages requests missing token
+            String reqUri = request.getRequestURI();
+            if (reqUri.startsWith("/api/messages")) {
+                logger.error("Request to {} {} has no JWT token attached (no Authorization header, access_token param, or jwt cookie). Will return 401.",
+                        request.getMethod(), reqUri);
+            }
             filterChain.doFilter(request, response);
             return;
         }
 
         // Extract JWT token
-        jwt = authHeader.substring(7);
+        jwt = tokenCandidate;
 
         try {
             // Extract user email from JWT
@@ -74,7 +126,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     logger.info("JWT authentication successful for user='{}' authorities='{}' request='{} {}'",
                             userEmail, authorities, request.getMethod(), request.getRequestURI());
                 } else {
-                    logger.debug("JWT token is not valid for user: {}", userEmail);
+                    logger.error("JWT token is NOT VALID for user: {} for request {} {} - Token may be expired or invalid",
+                            userEmail, request.getMethod(), request.getRequestURI());
                 }
             }
         } catch (Exception e) {

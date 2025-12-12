@@ -21,13 +21,19 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
+    private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
 
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
@@ -38,13 +44,32 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN") // changed to hasAuthority("ADMIN") so authorities like "ADMIN" (without ROLE_ prefix) are accepted
-                        .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
+                        .requestMatchers("/ws/**").permitAll() // Allow WebSocket connections
+                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/customer/**").hasAuthority("CUSTOMER")
+                        // Message endpoints - method-level security (@PreAuthorize) handles authorization
+                        .requestMatchers("/api/messages/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req, res, ex2) -> {
+                            String authHeader = req.getHeader("Authorization");
+                            logger.error("Authentication failed for {} {} - Authorization header present: {} - Exception: {}",
+                                    req.getMethod(), req.getRequestURI(), authHeader != null, ex2.getMessage());
+                            res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+                        })
+                        .accessDeniedHandler((req, res, accessDeniedException) -> {
+                            // Log details for debugging: principal and requested URI
+                            Object principal = req.getUserPrincipal();
+                            logger.error("Access denied to {} {} principal={} - Exception: {}",
+                                    req.getMethod(), req.getRequestURI(), principal, accessDeniedException.getMessage());
+                            res.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden");
+                        })
                 )
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -57,7 +82,10 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:4200"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        // Ensure Authorization header is allowed so browser clients can send JWT
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        // Expose Authorization header in responses if needed
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
