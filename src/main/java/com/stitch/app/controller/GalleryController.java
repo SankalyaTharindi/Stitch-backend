@@ -96,4 +96,11 @@ public class GalleryController {
         boolean likedByCurrentUser = false;
         return ResponseEntity.ok(GalleryImageDTO.from(updated, likes, likedByCurrentUser));
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> deleteImage(@PathVariable Long id) {
+        galleryService.deleteImage(id);
+        return ResponseEntity.ok().build();
+    }
 }

@@ -157,4 +157,18 @@ public class GalleryService {
         GalleryImage img = galleryImageRepository.findById(imageId).orElseThrow(() -> new RuntimeException("Image not found"));
         return galleryLikeRepository.countByImage(img);
     }
+
+    @Transactional
+    public void deleteImage(Long id) {
+        GalleryImage img = getById(id);
+
+        // Delete associated likes first
+        galleryLikeRepository.deleteByImage(img);
+
+        // Delete the image from database
+        galleryImageRepository.delete(img);
+
+        // Delete the physical file
+        fileStorageService.deleteFile(img.getFileName());
+    }
 }
