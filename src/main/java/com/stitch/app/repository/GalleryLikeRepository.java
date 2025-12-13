@@ -12,5 +12,6 @@ import java.util.Optional;
 public interface GalleryLikeRepository extends JpaRepository<GalleryLike, Long> {
     Optional<GalleryLike> findByImageAndUser(GalleryImage image, User user);
     long countByImage(GalleryImage image);
+    void deleteByImage(GalleryImage image);
 }
 
