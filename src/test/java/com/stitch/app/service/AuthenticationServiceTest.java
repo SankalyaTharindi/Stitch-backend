@@ -25,6 +25,7 @@ public class AuthenticationServiceTest {
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
     private AuthenticationManager authenticationManager;
+    private NotificationService notificationService;
 
     @BeforeEach
     public void setUp() {
@@ -32,8 +33,9 @@ public class AuthenticationServiceTest {
         passwordEncoder = Mockito.mock(PasswordEncoder.class);
         jwtService = Mockito.mock(JwtService.class);
         authenticationManager = Mockito.mock(AuthenticationManager.class);
+        notificationService = Mockito.mock(NotificationService.class);
 
-        authenticationService = new AuthenticationService(userRepository, passwordEncoder, jwtService, authenticationManager);
+        authenticationService = new AuthenticationService(userRepository, passwordEncoder, jwtService, authenticationManager, notificationService);
     }
 
     @Test

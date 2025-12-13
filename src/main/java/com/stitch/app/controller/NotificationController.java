@@ -1,5 +1,6 @@
 package com.stitch.app.controller;
 
+import com.stitch.app.dto.NotificationDTO;
 import com.stitch.app.entity.Notification;
 import com.stitch.app.entity.User;
 import com.stitch.app.service.NotificationService;
@@ -9,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -18,15 +20,27 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @GetMapping
-    public ResponseEntity<List<Notification>> getMyNotifications(@AuthenticationPrincipal User user) {
+    public ResponseEntity<List<NotificationDTO>> getMyNotifications(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
         List<Notification> notifications = notificationService.getUserNotifications(user.getId());
-        return ResponseEntity.ok(notifications);
+        List<NotificationDTO> dtos = notifications.stream()
+                .map(NotificationDTO::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/unread")
-    public ResponseEntity<List<Notification>> getUnreadNotifications(@AuthenticationPrincipal User user) {
+    public ResponseEntity<List<NotificationDTO>> getUnreadNotifications(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
         List<Notification> notifications = notificationService.getUnreadNotifications(user.getId());
-        return ResponseEntity.ok(notifications);
+        List<NotificationDTO> dtos = notifications.stream()
+                .map(NotificationDTO::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
 
     @PutMapping("/{id}/read")
@@ -35,14 +49,20 @@ public class NotificationController {
         return ResponseEntity.ok().build();
     }
 
-    @PutMapping("/mark-all-read")
+    @PutMapping("/read-all")
     public ResponseEntity<Void> markAllAsRead(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
         notificationService.markAllAsRead(user.getId());
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/count")
     public ResponseEntity<Long> getUnreadCount(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
         long count = notificationService.getUnreadNotifications(user.getId()).size();
         return ResponseEntity.ok(count);
     }

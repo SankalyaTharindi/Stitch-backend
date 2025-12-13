@@ -31,6 +31,7 @@ C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\repository\GalleryLikeRepo
 C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\controller\StatusUpdateRequest.java
 C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\controller\AdminController.java
 C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\dto\MessageDTO.java
+C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\dto\NotificationDTO.java
 C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\service\AuthenticationService.java
 C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\entity\Message.java
 C:\Stitch\Stitch-backend\src\main\java\com\stitch\app\service\AppointmentService.java

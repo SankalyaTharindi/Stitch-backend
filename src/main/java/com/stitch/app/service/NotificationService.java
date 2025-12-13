@@ -46,6 +46,12 @@ public class NotificationService {
         return notification;
     }
 
+    @Transactional
+    public Notification createNotification(User user, String title, String message,
+                                           Notification.NotificationType type) {
+        return createNotification(user, null, title, message, type);
+    }
+
     @Async
     public void sendEmailNotification(String to, String subject, String text) {
         if (mailSender == null) {

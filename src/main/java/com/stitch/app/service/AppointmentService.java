@@ -152,7 +152,26 @@ public class AppointmentService {
             }
         }
 
-        return appointmentRepository.save(appointment);
+        appointment = appointmentRepository.save(appointment);
+
+        // Notify all admins about the appointment update
+        notifyAdminsAboutAppointmentUpdate(appointment);
+
+        return appointment;
+    }
+
+    private void notifyAdminsAboutAppointmentUpdate(Appointment appointment) {
+        List<User> admins = userRepository.findByRole(User.Role.ADMIN);
+
+        for (User admin : admins) {
+            notificationService.createNotification(
+                    admin,
+                    appointment,
+                    "Appointment Updated",
+                    appointment.getCustomerName() + " has updated their appointment",
+                    Notification.NotificationType.APPOINTMENT_BOOKED
+            );
+        }
     }
 
     @Transactional
@@ -209,7 +228,7 @@ public class AppointmentService {
                 appointment.getCustomer(),
                 appointment,
                 "Appointment Approved",
-                "Your appointment has been approved. Please come to give measurements.",
+                "Your appointment has been approved. Our admin will contact you through a call within 2 days to confirm your appointment details. You will need to visit our physical location and give measurements.",
                 Notification.NotificationType.APPOINTMENT_APPROVED
         );
 
@@ -240,6 +259,7 @@ public class AppointmentService {
         Appointment appointment = getAppointmentById(id);
 
         try {
+            Appointment.Status oldStatus = appointment.getStatus();
             Appointment.Status status = Appointment.Status.valueOf(statusStr.toUpperCase());
             appointment.setStatus(status);
             appointment = appointmentRepository.save(appointment);
@@ -252,6 +272,15 @@ public class AppointmentService {
                         "Jacket Ready",
                         "Your saree jacket is ready! Please come to collect it.",
                         Notification.NotificationType.JACKET_READY
+                );
+            } else if (oldStatus != status) {
+                // Notify customer about any status change
+                notificationService.createNotification(
+                        appointment.getCustomer(),
+                        appointment,
+                        "Appointment Status Updated",
+                        "Your appointment status has been updated to: " + status.toString().replace("_", " "),
+                        Notification.NotificationType.APPOINTMENT_STATUS_CHANGED
                 );
             }
 

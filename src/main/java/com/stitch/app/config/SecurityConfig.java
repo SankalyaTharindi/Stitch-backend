@@ -47,6 +47,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**").permitAll()
                         .requestMatchers("/ws/**").permitAll() // Allow WebSocket connections
+
+                        // Gallery endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/gallery", "/api/gallery/**").permitAll() // Public gallery viewing
+                        .requestMatchers(HttpMethod.POST, "/api/gallery/*/like").authenticated() // Authenticated users can like
+                        .requestMatchers(HttpMethod.POST, "/api/gallery").hasAuthority("ADMIN") // Only admin can upload
+                        .requestMatchers(HttpMethod.PUT, "/api/gallery/**").hasAuthority("ADMIN") // Only admin can update
+                        .requestMatchers(HttpMethod.DELETE, "/api/gallery/**").hasAuthority("ADMIN") // Only admin can delete
+
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/customer/**").hasAuthority("CUSTOMER")
                         // Message endpoints - method-level security (@PreAuthorize) handles authorization

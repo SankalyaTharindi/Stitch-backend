@@ -6,14 +6,18 @@ import com.stitch.app.dto.RegisterRequest;
 import com.stitch.app.dto.UserDTO;
 import com.stitch.app.dto.UpdateProfileRequest;
 import com.stitch.app.dto.ChangePasswordRequest;
+import com.stitch.app.entity.Notification;
 import com.stitch.app.entity.User;
 import com.stitch.app.repository.UserRepository;
 import com.stitch.app.service.AuthenticationService;
+import com.stitch.app.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -23,6 +27,7 @@ public class AuthenticationController {
     private final AuthenticationService authService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationService notificationService;
 
     @PostMapping("/register")
     public ResponseEntity<AuthenticationResponse> register(@RequestBody RegisterRequest request) {
@@ -53,20 +58,52 @@ public class AuthenticationController {
         User current = userRepository.findById(user.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        boolean profileChanged = false;
+        StringBuilder changes = new StringBuilder();
+
         // If email changed, ensure uniqueness
         if (request.getEmail() != null && !request.getEmail().equalsIgnoreCase(current.getEmail())) {
             if (userRepository.existsByEmail(request.getEmail())) {
                 return ResponseEntity.badRequest().build();
             }
             current.setEmail(request.getEmail());
+            profileChanged = true;
+            changes.append("Email updated to ").append(request.getEmail()).append(". ");
         }
 
-        if (request.getFullName() != null) current.setFullName(request.getFullName());
-        if (request.getPhoneNumber() != null) current.setPhoneNumber(request.getPhoneNumber());
+        if (request.getFullName() != null && !request.getFullName().equals(current.getFullName())) {
+            current.setFullName(request.getFullName());
+            profileChanged = true;
+            changes.append("Name updated to ").append(request.getFullName()).append(". ");
+        }
 
-        userRepository.save(current);
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().equals(current.getPhoneNumber())) {
+            current.setPhoneNumber(request.getPhoneNumber());
+            profileChanged = true;
+            changes.append("Phone number updated. ");
+        }
+
+        current = userRepository.save(current);
+
+        // Notify admins if customer updated their profile (and if user is a customer)
+        if (profileChanged && current.getRole() == User.Role.CUSTOMER) {
+            notifyAdminsAboutProfileUpdate(current, changes.toString());
+        }
 
         return ResponseEntity.ok(UserDTO.fromUser(current));
+    }
+
+    private void notifyAdminsAboutProfileUpdate(User customer, String changes) {
+        List<User> admins = userRepository.findByRole(User.Role.ADMIN);
+
+        for (User admin : admins) {
+            notificationService.createNotification(
+                    admin,
+                    "Customer Profile Updated",
+                    customer.getFullName() + " has updated their profile. " + changes,
+                    Notification.NotificationType.PROFILE_UPDATED
+            );
+        }
     }
 
     @PutMapping("/change-password")

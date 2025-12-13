@@ -31,6 +31,7 @@ com\stitch\app\config\WebSocketPrincipal.class
 com\stitch\app\service\MessageService.class
 com\stitch\app\controller\CustomerController.class
 com\stitch\app\repository\GalleryLikeRepository.class
+com\stitch\app\dto\NotificationDTO.class
 com\stitch\app\entity\Appointment$Status.class
 com\stitch\app\repository\BillRepository.class
 com\stitch\app\service\AuthenticationService.class
@@ -60,6 +61,7 @@ com\stitch\app\config\WebSocketConfig.class
 com\stitch\app\dto\AuthenticationRequest$AuthenticationRequestBuilder.class
 com\stitch\app\dto\RegisterRequest$RegisterRequestBuilder.class
 com\stitch\app\controller\AppointmentController.class
+com\stitch\app\dto\NotificationDTO$NotificationDTOBuilder.class
 com\stitch\app\StitchApplication.class
 com\stitch\app\repository\NotificationRepository.class
 com\stitch\app\dto\AuthenticationResponse$AuthenticationResponseBuilder.class

@@ -3,6 +3,7 @@ package com.stitch.app.service;
 import com.stitch.app.dto.GalleryImageDTO;
 import com.stitch.app.entity.GalleryImage;
 import com.stitch.app.entity.GalleryLike;
+import com.stitch.app.entity.Notification;
 import com.stitch.app.entity.User;
 import com.stitch.app.repository.GalleryImageRepository;
 import com.stitch.app.repository.GalleryLikeRepository;
@@ -23,6 +24,7 @@ public class GalleryService {
     private final GalleryLikeRepository galleryLikeRepository;
     private final FileStorageService fileStorageService;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public GalleryImage uploadImage(MultipartFile file, String title, String description, String uploaderEmail) {
@@ -36,7 +38,28 @@ public class GalleryService {
                 .uploadedBy(uploader)
                 .build();
 
-        return galleryImageRepository.save(img);
+        img = galleryImageRepository.save(img);
+
+        // Notify all customers about new gallery photo
+        notifyCustomersAboutNewPhoto(img);
+
+        return img;
+    }
+
+    private void notifyCustomersAboutNewPhoto(GalleryImage image) {
+        List<User> customers = userRepository.findByRole(User.Role.CUSTOMER);
+        String photoTitle = (image.getTitle() != null && !image.getTitle().isEmpty())
+                ? image.getTitle()
+                : "New Photo";
+
+        for (User customer : customers) {
+            notificationService.createNotification(
+                    customer,
+                    "New Gallery Photo",
+                    "A new photo has been added to the gallery: " + photoTitle,
+                    Notification.NotificationType.GALLERY_PHOTO_UPLOADED
+            );
+        }
     }
 
     // New: listAll with awareness of current user to compute likedByCurrentUser
@@ -82,6 +105,9 @@ public class GalleryService {
         if (like == null) {
             System.out.println("User " + user.getId() + " (" + userEmail + ") LIKED image " + imageId);
             galleryLikeRepository.save(GalleryLike.builder().image(img).user(user).build());
+
+            // Notify all admins when a customer likes a photo
+            notifyAdminsAboutPhotoLike(img, user);
         } else {
             System.out.println("User " + user.getId() + " (" + userEmail + ") UNLIKED image " + imageId);
             galleryLikeRepository.delete(like);
@@ -90,6 +116,22 @@ public class GalleryService {
         long totalLikes = galleryLikeRepository.countByImage(img);
         System.out.println("Image " + imageId + " now has " + totalLikes + " total likes");
         return totalLikes;
+    }
+
+    private void notifyAdminsAboutPhotoLike(GalleryImage image, User customer) {
+        List<User> admins = userRepository.findByRole(User.Role.ADMIN);
+        String photoTitle = (image.getTitle() != null && !image.getTitle().isEmpty())
+                ? image.getTitle()
+                : "Photo #" + image.getId();
+
+        for (User admin : admins) {
+            notificationService.createNotification(
+                    admin,
+                    "Gallery Photo Liked",
+                    customer.getFullName() + " liked the photo: " + photoTitle,
+                    Notification.NotificationType.GALLERY_PHOTO_LIKED
+            );
+        }
     }
 
     // New helper: check if a specific user has liked an image
